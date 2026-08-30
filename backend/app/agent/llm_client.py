@@ -6,7 +6,7 @@ import logging
 from typing import Type, TypeVar
 
 from pydantic import BaseModel, ValidationError
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
 from ..config import get_settings
 
@@ -21,6 +21,14 @@ EXTRACTION_SYSTEM_PROMPT = (
 )
 
 
+def _retry_chat(exc: BaseException) -> bool:
+    status = getattr(exc, "status_code", None)
+    if status in {401, 403, 404}:
+        return False
+    name = type(exc).__name__
+    return name not in {"AuthenticationError", "PermissionDeniedError"}
+
+
 class LLMClient:
     def __init__(self) -> None:
         settings = get_settings()
@@ -33,12 +41,22 @@ class LLMClient:
             from openai import OpenAI
 
             self._client = OpenAI(api_key=self._api_key, base_url=self._base_url)
+            if self._api_key.startswith("sk-or-") and "openai.com" in (self._base_url or ""):
+                logger.warning(
+                    "LLM_API_KEY 看起来是 OpenRouter Key，但 LLM_BASE_URL 仍指向 OpenAI。"
+                    "请把 LLM_BASE_URL 设为 https://openrouter.ai/api/v1，否则整理会 401，系统会退回启发式。"
+                )
 
     @property
     def is_configured(self) -> bool:
         return self._client is not None
 
-    @retry(stop=stop_after_attempt(2), wait=wait_exponential(multiplier=1, min=1, max=4))
+    @retry(
+        stop=stop_after_attempt(2),
+        wait=wait_exponential(multiplier=1, min=1, max=4),
+        retry=retry_if_exception(_retry_chat),
+        reraise=True,
+    )
     def _chat(self, system_prompt: str, user_content: str) -> str:
         if not self._client:
             raise RuntimeError("LLM client 未配置 LLM_API_KEY")

@@ -398,8 +398,11 @@ def organize_document(db: Session, doc: models.Document, llm: LLMClient | None =
     if llm and llm.is_configured:
         try:
             org = llm_organization(llm, doc)
-        except Exception:  # noqa: BLE001
-            logger.exception("LLM 整理失败 document=%s", doc.id)
+        except Exception as exc:  # noqa: BLE001
+            status = getattr(exc, "status_code", None)
+            logger.warning("LLM 整理失败 document=%s (%s): %s", doc.id, type(exc).__name__, exc)
+            if status not in {401, 403}:
+                logger.debug("LLM 整理堆栈", exc_info=True)
     if org is None:
         org = heuristic_organization(db, doc)
     apply_organization(db, doc, org)

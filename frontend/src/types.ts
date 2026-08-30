@@ -60,6 +60,66 @@ export interface PriceQuote {
   collected_at: string
 }
 
+export interface Activity {
+  id: number
+  platform_id: number
+  activity_type: string
+  title: string
+  summary: string
+  source_url: string
+  published_at: string | null
+  collected_at: string
+}
+
+export interface SocialPost {
+  id: number
+  platform_id: number
+  network: string
+  author: string
+  content: string
+  url: string
+  sentiment: string
+  engagement_score: number
+  published_at: string | null
+  collected_at: string
+}
+
+export interface DashboardSummary {
+  total_countries: number
+  total_platforms: number
+  total_price_points_24h: number
+  new_price_points_24h: number
+  active_promotions_7d: number
+  social_posts_7d: number
+  live_mode: boolean
+  last_run: CollectionRun | null
+  best_rate_per_card_type: {
+    gift_card_type: string
+    icon: string
+    platform: string
+    rate_percent: number
+    currency: string
+  }[]
+  biggest_movers: {
+    platform: string
+    gift_card_type: string
+    change_percent: number
+    rate_percent: number
+    currency: string
+  }[]
+}
+
+export interface ContentIdeaItem {
+  title: string
+  description: string
+  priority: string
+}
+
+export interface ContentIdeaCategory {
+  category: string
+  items: ContentIdeaItem[]
+}
+
 export interface CollectionRun {
   id: number
   scope: string

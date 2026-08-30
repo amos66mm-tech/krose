@@ -1,8 +1,11 @@
 import axios from 'axios'
 import type {
+  Activity,
   AgentStatus,
   CollectionRun,
+  ContentIdeaCategory,
   Country,
+  DashboardSummary,
   DocumentDetail,
   DocTypeOption,
   EntityDetail,
@@ -13,6 +16,7 @@ import type {
   PriceBoardCell,
   PriceQuote,
   SearchResponse,
+  SocialPost,
   TagRef,
   WatchQuery,
 } from '../types'
@@ -37,15 +41,15 @@ export const fetchPriceHistory = (platformId: number, giftCardTypeId: number, da
     .then((r) => r.data)
 
 export const fetchActivities = (countryCode?: string, limit = 50) =>
-  api.get('/activities', { params: { country_code: countryCode, limit } }).then((r) => r.data)
+  api.get<Activity[]>('/activities', { params: { country_code: countryCode, limit } }).then((r) => r.data)
 
 export const fetchSocialPosts = (countryCode?: string, limit = 50) =>
-  api.get('/social', { params: { country_code: countryCode, limit } }).then((r) => r.data)
+  api.get<SocialPost[]>('/social', { params: { country_code: countryCode, limit } }).then((r) => r.data)
 
 export const fetchDashboardSummary = (countryCode?: string) =>
-  api.get('/dashboard/summary', { params: { country_code: countryCode } }).then((r) => r.data)
+  api.get<DashboardSummary>('/dashboard/summary', { params: { country_code: countryCode } }).then((r) => r.data)
 
-export const fetchIdeas = () => api.get('/ideas').then((r) => r.data)
+export const fetchIdeas = () => api.get<ContentIdeaCategory[]>('/ideas').then((r) => r.data)
 
 export const fetchAgentStatus = () => api.get<AgentStatus>('/dashboard/agent-status').then((r) => r.data)
 

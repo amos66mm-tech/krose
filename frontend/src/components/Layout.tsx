@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import clsx from 'clsx'
-import { FormEvent, useState } from 'react'
+import { useState, type FormEvent } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { fetchAgentStatus, fetchCountries } from '../api/client'
 import { useCountry } from '../context/CountryContext'

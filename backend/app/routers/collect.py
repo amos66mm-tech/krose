@@ -52,6 +52,7 @@ def custom_watch(payload: schemas.WatchCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="查询词不能为空")
 
     watch = None
+    watch_out = None
     if payload.save:
         watch = persist_custom_watch(
             db,
@@ -60,10 +61,11 @@ def custom_watch(payload: schemas.WatchCreate, db: Session = Depends(get_db)):
             country_code=payload.country_code,
             stream=payload.stream or "custom",
         )
+        watch_out = schemas.WatchOut.model_validate(watch)
 
     if not settings.can_collect:
         return {
-            "watch": watch,
+            "watch": watch_out,
             "mode": "demo",
             "detail": "未配置 EXA_API_KEY。这张网已保存，配置 Key 后的下一次采集会真正去搜。请先在情报库里搜索现有原文。",
             "documents": [],
@@ -94,4 +96,4 @@ def custom_watch(payload: schemas.WatchCreate, db: Session = Depends(get_db)):
             }
         )
     db.commit()
-    return {"watch": watch, "mode": "live", "documents": documents}
+    return {"watch": watch_out, "mode": "live", "documents": documents}
