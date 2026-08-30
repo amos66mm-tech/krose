@@ -33,6 +33,16 @@ class Settings(BaseSettings):
     # --- CORS ---
     cors_origins: str = "*"
 
+    # --- 粗略汇率兜底（本地货币 / 1 USD），仅用于把"某面额卡在本地卖多少钱"换算成"占面值百分比"。
+    # 这是一个近似值，不代表实时汇率；生产环境建议接入实时汇率 API 替换。可用同名环境变量覆盖，例如 FX_NGN_PER_USD=1600 ---
+    fx_ngn_per_usd: float = 1500.0
+    fx_ghs_per_usd: float = 15.5
+    fx_xaf_per_usd: float = 600.0
+
+    @property
+    def fx_table(self) -> dict[str, float]:
+        return {"NGN": self.fx_ngn_per_usd, "GHS": self.fx_ghs_per_usd, "XAF": self.fx_xaf_per_usd}
+
     @property
     def has_exa(self) -> bool:
         return bool(self.exa_api_key)

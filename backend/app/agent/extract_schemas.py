@@ -7,8 +7,31 @@ from pydantic import BaseModel, Field
 
 
 class ExtractedPrice(BaseModel):
-    found: bool = Field(description="该资料中是否包含明确的礼品卡回收/收购价格信息")
-    rate_percent: Optional[float] = Field(default=None, description="相对礼品卡面值的回收百分比，例如 78.5 表示按面值 78.5% 收购")
+    found: bool = Field(
+        description=(
+            "该资料中是否包含任何可用的礼品卡回收/收购价格信息——"
+            "可以是「占面值百分比」，也可以是「某个面额的卡对应的本地货币金额/区间」。"
+            "只要能读到一个具体数字就设为 true，交给后续逻辑换算，不要仅因为格式不是百分比就设为 false。"
+        )
+    )
+    rate_percent: Optional[float] = Field(
+        default=None,
+        description=(
+            "如果原文直接给出了「占卡面值百分比」，填这里，取值范围通常在 5~150 之间，例如 78.5 表示按面值 78.5% 收购。"
+            "如果原文没有直接给百分比，就把这个字段留空（null），改用下面的 absolute_price_local 字段。"
+        ),
+    )
+    absolute_price_local: Optional[float] = Field(
+        default=None,
+        description=(
+            "如果原文给出的是绝对本地货币金额（例如 '₦35,000–₦42,000'），填该区间的中位数（如 38500）。"
+            "只在 rate_percent 为空时使用这个字段。"
+        ),
+    )
+    absolute_price_face_value_usd: Optional[float] = Field(
+        default=None,
+        description="上面 absolute_price_local 对应的卡面额，用美元计价，例如 100（表示这是一张 $100 面值的卡）。",
+    )
     currency: Optional[str] = Field(default=None, description="结算货币的 ISO 代码，例如 NGN/GHS/XAF/USD")
     unit_description: Optional[str] = Field(default=None, description="价格适用的卡面额/条件说明，例如 'per $100 physical card'")
     confidence: float = Field(default=0.0, ge=0.0, le=1.0)

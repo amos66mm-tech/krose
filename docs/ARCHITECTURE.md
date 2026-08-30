@@ -56,6 +56,32 @@ CollectionRun (每次采集任务的执行记录，用于面板展示 Agent 运�
 - 面板「Agent 探针」页面提供手动触发按钮，也可以直接调用 `POST /api/collect/run?scope=all` 或用
   `backend/run_agent.py` 命令行脚本（适合接入 cron / GitHub Actions 定时任务）。
 
+## 真实抓取效果与已知限制（已用真实 Exa + OpenRouter Key 验证）
+
+这套流水线已经用真实的 Exa Key 和 OpenRouter（`openai/gpt-4o-mini`）Key 跑通过尼日利亚的价格/活动/社媒三条流水线，
+以下是验证过程中发现并已修复/需要注意的问题：
+
+1. **价格页面大多不会直接给"百分比"，而是给"某面额卡对应多少本地货币"**（例如 "$100 Amazon 卡在尼日利亚卖 ₦35,000–42,000"）。
+   `extract_schemas.ExtractedPrice` 因此同时支持 `rate_percent`（直接百分比）和
+   `absolute_price_local` + `absolute_price_face_value_usd`（绝对金额+对应面额）两种抽取方式，
+   后者会在 `pipeline._normalize_price_result()` 里用 `Settings.fx_table`（`.env` 里的
+   `FX_NGN_PER_USD` / `FX_GHS_PER_USD` / `FX_XAF_PER_USD`）换算成百分比。
+   **这个汇率是人工配置的近似值，不是实时汇率**，换算出来的百分比仅供参考，
+   后续如果要提高精度，建议接入一个实时汇率 API（或者也用 Exa 搜索"今日 USD 兑 NGN 汇率"再喂给 LLM）。
+2. **小平台在公开网络上的信息很稀疏，容易被搜索引擎撞名到完全不相关的同名公司**
+   （实测中曾出现 Sellcaddy → "SellCord"、Chapmall → "CapitaStar"/"Chapal" 等误匹配）。
+   已经在 `targets.py` 的 query 里加上引号 + "gift card app" 限定词，并在 `context_label` 里
+   明确要求"如果明显是不相关的同名公司/产品，请把 found 设为 false"，大幅减少了误匹配；
+   但对于网络存在感极低的平台，搜索可能仍然找不到任何相关内容，此时会诚实地回退到带
+   `[DEMO]` 标记的模拟数据，而不是编造。如果某个平台持续找不到真实数据，
+   建议在 `seed.py` 里补充其真实的 `twitter_handle` / `instagram_handle` /
+   `facebook_handle`，并在 `targets.py` 里优先用 `include_domains` 限定到对应社交平台域名。
+3. **抽取结果会做合理性校验**（`pipeline._is_plausible_rate()`，要求百分比落在 5%~150% 区间），
+   避免 LLM 把绝对货币金额误当成百分比直接写入数据库。
+4. 一次完整的"某国全量平台 × 全量卡种"价格采集（例如尼日利亚 5 个平台 × 12 种卡 = 60 个监控目标）
+   在实测中耗时约 1.5~3.5 分钟，主要瓶颈是 Exa 搜索延迟；如果要覆盖全部 3 个国家 11 个平台，
+   建议通过面板「Agent 探针」分批触发，或依赖后台定时任务而不是同步等待。
+
 ## 扩展指南
 
 - **新增国家/平台**：编辑 `backend/app/seed.py` 里的 `COUNTRIES` / `PLATFORMS`，重启服务即可（seed 逻辑是幂等的）。

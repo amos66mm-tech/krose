@@ -64,8 +64,11 @@ def build_activity_targets(db: Session, platform_ids: Optional[list[int]] = None
             WatchTarget(
                 key=f"activity:{platform.slug}",
                 label=f"{platform.name} 最新活动/公告",
-                query=f"{platform.name} gift card app new promotion OR announcement OR update",
-                context_label=f"{platform.name} 近期的活动、公告、政策变化或产品更新",
+                query=f'"{platform.name}" gift card app new promotion OR announcement OR update',
+                context_label=(
+                    f"{platform.name}（一个礼品卡交易 App）近期的活动、公告、政策变化或产品更新。"
+                    "如果这个网页明显是同名的其他不相关公司/产品（不是礼品卡业务），请把 found 设为 false。"
+                ),
                 platform_id=platform.id,
                 category="activity",
             )
@@ -82,12 +85,18 @@ def build_social_targets(db: Session, platform_ids: Optional[list[int]] = None) 
         handles = " OR ".join(
             filter(None, [platform.twitter_handle, platform.instagram_handle, platform.facebook_handle])
         )
+        # 加上 "gift card" 上下文和引号，尽量避免同名不相关公司/账号造成误匹配
+        # （很多非洲礼品卡初创公司规模小、网络存在感稀疏，容易被搜索引擎撞名）。
+        query = f'"{platform.name}" gift card app {handles} latest post twitter OR instagram OR facebook'.strip()
         targets.append(
             WatchTarget(
                 key=f"social:{platform.slug}",
                 label=f"{platform.name} 最新社交媒体动态",
-                query=f"{platform.name} {handles} latest post twitter OR instagram OR facebook",
-                context_label=f"{platform.name} 最近在社交媒体上发布的内容",
+                query=query,
+                context_label=(
+                    f"{platform.name}（一个礼品卡交易 App）最近在社交媒体上发布的内容。"
+                    "如果这个网页明显是同名的其他不相关公司/账号（不是礼品卡业务），请把 found 设为 false。"
+                ),
                 platform_id=platform.id,
                 category="social",
             )

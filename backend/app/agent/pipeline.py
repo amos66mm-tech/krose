@@ -46,6 +46,34 @@ def _card_pool_names(db: Session) -> list[str]:
     return [c.name for c in db.query(models.GiftCardType).all()]
 
 
+def _is_plausible_rate(rate_percent: float) -> bool:
+    """礼品卡回收率的合理区间粗略过滤，避免 LLM 把绝对货币金额误当成百分比抽出来。"""
+    return 5.0 <= rate_percent <= 150.0
+
+
+def _normalize_price_result(result, fallback_currency: Optional[str]) -> tuple[Optional[float], Optional[str]]:
+    """
+    把 LLM 抽取结果统一换算成「占面值百分比」。
+    - 如果 LLM 直接给了 rate_percent，直接用。
+    - 如果只给了绝对本地货币金额 + 对应美元面额，用近似汇率表（config.fx_table）换算成百分比。
+      注意：这里的汇率是粗略兜底值，不是实时汇率，换算结果仅供参考。
+    """
+    if not result or not result.found:
+        return None, None
+    if result.rate_percent:
+        return result.rate_percent, result.currency
+
+    if result.absolute_price_local and result.absolute_price_face_value_usd:
+        currency = (result.currency or fallback_currency or "").upper()
+        fx_rate = get_settings().fx_table.get(currency)
+        if fx_rate:
+            face_value_local = result.absolute_price_face_value_usd * fx_rate
+            if face_value_local > 0:
+                rate_percent = round((result.absolute_price_local / face_value_local) * 100, 2)
+                return rate_percent, currency
+    return None, None
+
+
 def run_price_collection(db: Session, platform_ids: Optional[list[int]] = None) -> models.CollectionRun:
     settings = get_settings()
     live = settings.is_live_mode
@@ -77,9 +105,20 @@ def run_price_collection(db: Session, platform_ids: Optional[list[int]] = None) 
                             ExtractedPrice,
                             context_label=t.context_label,
                             raw_text=hit.summary or hit.text,
+                            extra_instructions=(
+                                "这段文本可能来自一个平台的博客/价格计算器/公告页面。"
+                                "优先寻找「占卡面值百分比」的直接表述；如果没有，就找「某个面额（通常按 $100 换算）"
+                                "对应的本地货币金额或区间」，把中位数填进 absolute_price_local，"
+                                "并把对应的美元面额填进 absolute_price_face_value_usd。"
+                                "只有当文本完全没有任何具体价格数字时才把 found 设为 false。"
+                            ),
                         )
-                        if result and result.found and result.rate_percent:
+                        normalized_rate, normalized_currency = _normalize_price_result(result, t.extra.get("currency"))
+                        if result and result.found and normalized_rate and _is_plausible_rate(normalized_rate):
                             extracted = result
+                            extracted.rate_percent = normalized_rate
+                            if normalized_currency:
+                                extracted.currency = normalized_currency
                             source_url = hit.url
                             source_title = hit.title
                             raw_snippet = (hit.summary or hit.text)[:500]
